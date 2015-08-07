@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Last Edited 05/27/2015
+
+export LOGNAME=root
+cd /root/
+
+smb="./config/smb.conf"
+krb5="./config/krb5.conf"
+sssd="./config/sssd.conf"
+key_file="./config/key"
+ad_user="[REDACTED]"
+
+if [ "$(hostname)" != "[REDACTED]" ] && [ "$(hostname)" != "[REDACTED]" ] 
+then
+	if [ -e "$smb" ] && [ -e "$krb5" ] && [ -e "$sssd" ] && [ -e "$key_file" ]
+	then
+		echo "Copying config files"
+		cat $smb > /etc/samba/smb.conf
+		cat $krb5 > /etc/krb5.conf
+		cat $sssd > /etc/sssd/sssd.conf
+		chmod -R 0600 /etc/sssd/
+		echo "Joining domain..."
+		key=$(cat $key_file)
+		cred=$(echo $key | openssl enc -base64 -d -aes-256-cbc -pass pass:$(sha256sum /root/join-server | awk '{print $1}'))
+		echo $cred | kinit $ad_user
+		net ads join createcomputer="[REDACTED]" -k
+		net ads keytab create -k
+		kdestroy
+		authconfig --enablesssdauth --enablesssd --enablemkhomedir --update
+		service sssd start
+		chkconfig sssd
+		echo "Removing tmp files..."
+		grep -v "/root/join-server" /etc/rc.local > /etc/rc.tmp && cat /etc/rc.tmp >> /etc/rc.local && rm -rf /etc/rc.tmp
+		rm -rf ./config/ && rm -f ./join-server
+		echo "Done"
+		exit 0
+	else
+		echo "Config Files Not Found."
+		exit 1
+	fi
+else
+	echo "Unique Hostname not configured, not joining domain."
+	exit 0
+fi

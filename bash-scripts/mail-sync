@@ -1,0 +1,8 @@
+#!/bin/bash
+
+tar -cjf mailcopy.tar -C / etc/postfix
+if [ ! "$(md5sum mailcopy.tar | cut -d ' ' -f 1)" == "$(cat cache)" ]; then
+  scp mailcopy.tar $1:~/mailsync > /dev/null
+  md5sum mailcopy.tar | cut -d ' ' -f 1 > cache
+fi 
+exit 0
