@@ -1,4 +1,5 @@
-mport sys, getopt, subprocess, os
+#!/usr/bin/python
+import sys, getopt, subprocess, os
 from multiprocessing import Process, Pool
 from subprocess import Popen, PIPE
 from itertools import repeat
