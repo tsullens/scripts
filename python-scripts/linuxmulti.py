@@ -1,10 +1,12 @@
 #!/usr/bin/python
+
 import sys, getopt, subprocess, os
 from multiprocessing import Process, Pool
 from subprocess import Popen, PIPE
-from itertools import repeat
 
-def printHelp():
+def printHelp(err = False):
+  if err:
+    print err + "\n"
   print """Usage:
            -h | --help -> print help
            -t | --threads {num_threads} -> where {num_threads is the upper limit of parallel processes
@@ -23,17 +25,6 @@ def run(srv, commands):
   if err:
     print err
   print ""
-#  with ssh.stdin:
-#    for cmd in commands[0].split(';'):
-#      ssh.stdin.write(cmd.trim())
-#      ssh.stdin.flush()
-#  result = ssh.stdout.readlines()
- #  if result == []:
- #   error = ssh.stderr.readlines()
- #   print >>sys.stderr, "error: %s" % error
- # else:
- #   print "done"
-  #ssh.kill()
 
 def main(argv):
   threads = 4
@@ -42,27 +33,33 @@ def main(argv):
   except getopt.GetoptError:
     printHelp()
     sys.exit()
-  for opt, arg in opts:
-    if opt in ("-t", "--threads"):
-      threads = arg
-    if opt in ("-h", "--help"):
-      printHelp()
-      sys.exit()
-    elif opt in ("-i", "--input"):
-      f = open(arg, 'r')
-      srvs = []
-      pool = Pool(processes=threads)
-      results= [pool.apply(run, args=(srv,  args[0])) for srv in f]
-      #for srv in f:
-      #  p = Process(target=run, args=(srv.strip(), args[0]))
-      #  p.start()
-      #  p.join()
-    else: 
-      printHelp()
-#      srvs.append(line)
-#   pool = Pool(4)
-#   pool.map(run, zip(srvs, repeat(args[2]))
+  if opts: 
+    for opt, arg in opts:
+      if opt in ("-h", "--help"):
+        printHelp()
+        sys.exit()
+      if opt in ("-t", "--threads"):
+        threads = int(arg)
+      if opt in ("-i", "--input"):
+        if len(args):
+          try:
+            f = open(arg, 'r')
+          except:
+            printHelp("File read error")
+            sys.exit()
+          srvs = []
+          try:
+            pool = Pool(processes=threads)
+            results = [pool.apply_async(run, args=(srv,  args[0])).get(30) for srv in f]
+          except:
+            print"Failure: thread block, exiting\n"
+            sys.exit()
+        else:
+          printHelp("No command list found")
+      else: 
+        printHelp()
+  else:
+    printHelp()
 
 if __name__ == "__main__":
   main(sys.argv[1:])
-
