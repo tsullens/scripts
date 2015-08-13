@@ -1,0 +1,106 @@
+#!/bin/bash
+#Global Variables
+declare -A basis_tree
+declare -A cmp_tree
+db_delim=";"
+
+function print_help() {
+  echo "diff_check: compare file(s) or directory tree(s)
+        Example: diff_check /dir/to/check /path/to/db/file
+        pls don't break"
+  exit 1
+}
+
+function print_array() {
+  for f in "${!basis_tree[@]}"; do
+    echo "$f ${basis_tree[$f]}"
+  done
+}
+
+function recurse_files() {
+  for f in $1/*; do
+    if [ -e "$f" ]; then 
+      if [ ! -d "$f" ]; then
+        cmp_tree[$f]=$(stat -c %Y $f)
+      else
+        for ff in $f; do 
+          recurse_files "$ff"
+        done
+      fi
+    fi
+  done
+}
+
+function compile_db() {
+  while read -r line; do
+    basis_tree["${line%$db_delim*}"]=${line#*$db_delim}
+  done < "$db_file"
+}
+
+function compare() {
+  local result=0
+  for f in "${!cmp_tree[@]}"; do
+    if [[ ${basis_tree[$f]} ]]; then
+      if [ ${basis_tree[$f]} -ne ${cmp_tree[$f]} ]; then
+        echo "Modfied: $f	${basis_tree[$f]}	${cmp_tree[$f]}"
+        result=1
+      fi
+      unset basis_tree['$f']
+    else
+      echo "New: $f	${cmp_tree[$f]}"
+      result=1
+    fi
+  done
+  if [ "${#basis_tree[@]}" -gt 0 ]; then
+    result=1
+    for i in "${!basis_tree[@]}"; do
+      echo "Deleted/Not Present: $i	${basis_tree[$1]}"
+    done
+  fi
+  return $result
+}
+
+function write_db() {
+  > $db_file
+  for i in "${!cmp_tree[@]}"; do
+    echo "$i;${cmp_tree[$i]}" >> $db_file
+  done
+}
+    
+
+function main() {
+  
+  SAVEIFS=$IFS
+  IFS=$(echo -en "\0")
+
+  dir="$1"
+  db_file="$2"
+  recurse_files "$dir"
+  compile_db
+  compare
+  result=$?
+  if [ "$result" -eq 1 ]; then
+    echo "Save new db file?: (y/n)"
+    read ans
+    if [ "$ans" == "y" ] || [ "$ans" == "yes" ]; then
+      write_db
+    fi
+  else 
+    echo "No changes."
+  fi
+
+  IFS=$SAVEIFS
+}
+
+
+if [[ -z "$1" ]] || [[ -z "$2" ]]; then
+  print_help
+elif [ ! -e "$1" ]; then
+  echo "File/Dir Not Found"
+  print_help
+elif [ ! -e "$2" ]; then
+  echo "DB file not found.. creating new one at $2"
+  touch $2
+fi
+main "$1" "$2"
+exit 0
